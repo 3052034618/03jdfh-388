@@ -2,6 +2,24 @@ export type BranchOutcomeType = 'normal' | 'mild_mutation' | 'irreversible_pollu
 
 export type ConditionOperator = 'has_item' | 'no_item' | 'has_memory' | 'has_foreshadowing' | 'curse_min' | 'curse_max' | 'visited_chapter' | 'custom'
 
+export type EditorFocusTarget = 'symbols' | 'chapter' | 'rules' | null
+
+export interface CurseRuleDelta {
+  ruleName: string
+  delta: number
+}
+
+export interface PlaythroughChoice {
+  chapterId: string
+  branchId: string
+  curseBefore: number
+  curseAfter: number
+  ruleDeltas: CurseRuleDelta[]
+  branchDelta: number
+  chapterDelta: number
+  clampedTo?: 'upper' | 'lower'
+}
+
 export interface TriggerConditionItem {
   id: string
   type: ConditionOperator
@@ -90,7 +108,7 @@ export interface PlaythroughState {
   curseValue: number
   memories: string[]
   visitedChapters: string[]
-  choicesMade: { chapterId: string; branchId: string }[]
+  choicesMade: PlaythroughChoice[]
   foreshadowingNotes: string[]
   collectedItems: string[]
   isEnded: boolean

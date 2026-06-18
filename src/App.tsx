@@ -21,29 +21,55 @@ function App() {
     if (initializedRef.current) return
     initializedRef.current = true
 
-    let projectToLoad
-    const savedProjectStr = localStorage.getItem(PROJECT_STORAGE_KEY)
-    if (savedProjectStr) {
-      try {
-        projectToLoad = JSON.parse(savedProjectStr)
-      } catch (e) {
-        console.error('解析保存的项目失败:', e)
-        projectToLoad = loadSampleProject()
-      }
-    } else {
-      projectToLoad = loadSampleProject()
-    }
-    loadProject(projectToLoad)
+    const initialize = async () => {
+      let projectLoaded = false
 
-    setTimeout(() => {
-      const savedPage = localStorage.getItem(CURRENT_PAGE_STORAGE_KEY) as PageType | null
-      const project = useAppStore.getState().project
-      if (savedPage && (savedPage === 'editor' || savedPage === 'validator' || savedPage === 'playthrough')) {
-        setCurrentPage(savedPage)
-      } else if (project.uiState?.currentPage) {
-        setCurrentPage(project.uiState.currentPage)
+      if ('electronAPI' in window) {
+        try {
+          const result = await window.electronAPI.loadRecentProject()
+          if (result.success && result.data) {
+            console.log('成功从最近项目加载:', result.path)
+            loadProject(result.data)
+            projectLoaded = true
+          } else if (result.reason === 'file-not-found' && result.data) {
+            console.log('最近项目文件不存在，降级到 localStorage:', result.data.filePath)
+          } else if (result.reason === 'no-recent-project') {
+            console.log('没有最近项目记录，尝试 localStorage')
+          }
+        } catch (e) {
+          console.error('加载最近项目失败，降级到 localStorage:', e)
+        }
       }
-    }, 0)
+
+      if (!projectLoaded) {
+        const savedProjectStr = localStorage.getItem(PROJECT_STORAGE_KEY)
+        if (savedProjectStr) {
+          try {
+            const parsed = JSON.parse(savedProjectStr)
+            loadProject(parsed)
+            projectLoaded = true
+          } catch (e) {
+            console.error('解析保存的项目失败:', e)
+          }
+        }
+      }
+
+      if (!projectLoaded) {
+        loadProject(loadSampleProject())
+      }
+
+      setTimeout(() => {
+        const savedPage = localStorage.getItem(CURRENT_PAGE_STORAGE_KEY) as PageType | null
+        const project = useAppStore.getState().project
+        if (savedPage && (savedPage === 'editor' || savedPage === 'validator' || savedPage === 'playthrough')) {
+          setCurrentPage(savedPage)
+        } else if (project.uiState?.currentPage) {
+          setCurrentPage(project.uiState.currentPage)
+        }
+      }, 0)
+    }
+
+    initialize()
   }, [])
 
   useEffect(() => {
@@ -57,11 +83,17 @@ function App() {
   }, [currentPage])
 
   const handleSave = async () => {
-    if ((window as any).electronAPI) {
+    if ('electronAPI' in window) {
       const data = getProjectForSave()
-      const result = await (window as any).electronAPI.saveProject(data)
-      if (result.success) {
+      const result = await window.electronAPI.saveProject(data)
+      if (result.success && result.path) {
         console.log('保存成功:', result.path)
+        const fileName = result.fileName || result.path.split(/[\\/]/).pop() || 'curse-project.json'
+        try {
+          await window.electronAPI.saveRecentProject(result.path, fileName)
+        } catch (e) {
+          console.error('保存最近项目信息失败:', e)
+        }
       }
     } else {
       const data = getProjectForSave()
@@ -71,10 +103,18 @@ function App() {
   }
 
   const handleLoad = async () => {
-    if ((window as any).electronAPI) {
-      const result = await (window as any).electronAPI.loadProject()
-      if (result.success) {
+    if ('electronAPI' in window) {
+      const result = await window.electronAPI.loadProject()
+      if (result.success && result.data) {
         loadProject(result.data)
+        if (result.path) {
+          const fileName = result.fileName || result.path.split(/[\\/]/).pop() || 'curse-project.json'
+          try {
+            await window.electronAPI.saveRecentProject(result.path, fileName)
+          } catch (e) {
+            console.error('保存最近项目信息失败:', e)
+          }
+        }
       }
     } else {
       const saved = localStorage.getItem('curseweaver-project')

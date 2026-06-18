@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAppStore } from '../../store'
 
 export default function RulesPanel() {
@@ -9,11 +9,41 @@ export default function RulesPanel() {
   const addSymbol = useAppStore((s) => s.addSymbol)
   const updateSymbol = useAppStore((s) => s.updateSymbol)
   const deleteSymbol = useAppStore((s) => s.deleteSymbol)
+  const editorFocusTarget = useAppStore((s) => s.editorFocusTarget)
+  const setEditorFocusTarget = useAppStore((s) => s.setEditorFocusTarget)
 
   const [showRules, setShowRules] = useState(false)
   const [showSymbols, setShowSymbols] = useState(false)
   const [newSymbolKey, setNewSymbolKey] = useState('')
   const [newSymbolValue, setNewSymbolValue] = useState('')
+  const [highlightRules, setHighlightRules] = useState(false)
+  const [highlightSymbols, setHighlightSymbols] = useState(false)
+  const rulesRef = useRef<HTMLDivElement>(null)
+  const symbolsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (editorFocusTarget === 'rules') {
+      setShowRules(true)
+      setHighlightRules(true)
+      rulesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const t1 = setTimeout(() => setHighlightRules(false), 2000)
+      const t2 = setTimeout(() => setEditorFocusTarget(null), 2000)
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    } else if (editorFocusTarget === 'symbols') {
+      setShowSymbols(true)
+      setHighlightSymbols(true)
+      symbolsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const t1 = setTimeout(() => setHighlightSymbols(false), 2000)
+      const t2 = setTimeout(() => setEditorFocusTarget(null), 2000)
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+  }, [editorFocusTarget, setEditorFocusTarget])
 
   const handleAddSymbol = () => {
     if (newSymbolKey.trim()) {
@@ -25,7 +55,16 @@ export default function RulesPanel() {
 
   return (
     <div style={{ marginTop: '12px' }}>
-      <div className="rules-section">
+      <div
+        ref={rulesRef}
+        className="rules-section"
+        style={{
+          transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+          boxShadow: highlightRules ? '0 0 0 3px rgba(59, 130, 246, 0.6), 0 0 20px rgba(59, 130, 246, 0.4)' : 'none',
+          border: highlightRules ? '2px solid rgba(59, 130, 246, 0.8)' : '2px solid transparent',
+          borderRadius: '8px'
+        }}
+      >
         <div className="collapsible-header" onClick={() => setShowRules(!showRules)}>
           <span>📜 诅咒规则 ({project.curseRules.length})</span>
           <span>{showRules ? '▲' : '▼'}</span>
@@ -99,7 +138,17 @@ export default function RulesPanel() {
         )}
       </div>
 
-      <div className="symbols-section">
+      <div
+        ref={symbolsRef}
+        className="symbols-section"
+        style={{
+          transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+          boxShadow: highlightSymbols ? '0 0 0 3px rgba(59, 130, 246, 0.6), 0 0 20px rgba(59, 130, 246, 0.4)' : 'none',
+          border: highlightSymbols ? '2px solid rgba(59, 130, 246, 0.8)' : '2px solid transparent',
+          borderRadius: '8px',
+          marginTop: '12px'
+        }}
+      >
         <div className="collapsible-header" onClick={() => setShowSymbols(!showSymbols)}>
           <span>🔣 符号词典 ({Object.keys(project.symbols).length})</span>
           <span>{showSymbols ? '▲' : '▼'}</span>

@@ -45,6 +45,7 @@ export default function ValidatorPage() {
   const setSelectedChapter = useAppStore((s) => s.setSelectedChapter)
   const setSelectedBranch = useAppStore((s) => s.setSelectedBranch)
   const jumpToIssue = useAppStore((s) => s.jumpToIssue)
+  const setEditorFocusTarget = useAppStore((s) => s.setEditorFocusTarget)
 
   const [expandedIssues, setExpandedIssues] = useState<Record<string, boolean>>({})
 
@@ -70,10 +71,13 @@ export default function ValidatorPage() {
       if (fixItem.targetBranchId) {
         setSelectedBranch(fixItem.targetBranchId)
       }
-      setCurrentPage('editor')
-    } else {
-      setCurrentPage('editor')
     }
+    if (fixItem.actionType === 'add_symbol_explanation') {
+      setEditorFocusTarget('symbols')
+    } else if (fixItem.actionType === 'resolve_rule_conflict') {
+      setEditorFocusTarget('rules')
+    }
+    setCurrentPage('editor')
   }
 
   const getRelatedChapters = (issue: ValidationIssue) => {

@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   Project, Chapter, Branch, CurseRule, PlaythroughState,
-  ValidationIssue, ConditionCheckResult, TriggerConditionItem, Snapshot
+  ValidationIssue, ConditionCheckResult, TriggerConditionItem, Snapshot,
+  EditorFocusTarget, PlaythroughChoice, CurseRuleDelta
 } from '../types'
 import { validateProject } from '../utils/validation'
 import { CONDITION_TYPE_LABELS } from '../types'
@@ -16,10 +17,12 @@ interface AppState {
   playthrough: PlaythroughState
   validationIssues: ValidationIssue[]
   snapshots: Snapshot[]
+  editorFocusTarget: EditorFocusTarget
 
   setCurrentPage: (page: 'editor' | 'validator' | 'playthrough') => void
   setSelectedChapter: (id: string | null) => void
   setSelectedBranch: (id: string | null) => void
+  setEditorFocusTarget: (target: EditorFocusTarget) => void
   toggleChapterSelection: (id: string) => void
   selectChapterRange: (startId: string, endId: string) => void
   clearChapterSelection: () => void
@@ -126,10 +129,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   playthrough: createInitialPlaythrough(),
   validationIssues: [],
   snapshots: [],
+  editorFocusTarget: null,
 
   setCurrentPage: (page) => set({ currentPage: page }),
   setSelectedChapter: (id) => set({ selectedChapterId: id, selectedChapterIds: id ? [id] : [], selectedBranchId: null }),
   setSelectedBranch: (id) => set({ selectedBranchId: id }),
+  setEditorFocusTarget: (target) => set({ editorFocusTarget: target }),
   toggleChapterSelection: (id) => set((state) => ({
     selectedChapterIds: state.selectedChapterIds.includes(id)
       ? state.selectedChapterIds.filter((i) => i !== id)
@@ -580,14 +585,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   createSnapshot: (name, note) => set((state) => {
+    const currentSnapshotsCopy = [...state.project.snapshots]
+    const projectForSnapshot = get().getProjectForSave()
+    projectForSnapshot.snapshots = currentSnapshotsCopy
     const newSnapshot: Snapshot = {
       id: uuidv4(),
       name,
       note,
       createdAt: Date.now(),
-      project: get().getProjectForSave()
+      project: projectForSnapshot
     }
-    const newSnapshots = [...state.project.snapshots, newSnapshot]
+    const newSnapshots = [...currentSnapshotsCopy, newSnapshot]
     return {
       snapshots: newSnapshots,
       project: {
@@ -602,7 +610,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { snapshots, loadProject } = get()
     const snapshot = snapshots.find(s => s.id === snapshotId)
     if (snapshot) {
+      const currentSnapshots = [...get().project.snapshots]
       loadProject(snapshot.project)
+      set((state) => ({
+        project: {
+          ...state.project,
+          snapshots: currentSnapshots
+        },
+        snapshots: currentSnapshots
+      }))
     }
   },
 
@@ -635,9 +651,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const finalChapter = project.chapters.find(c => c.id === playthrough.currentChapterId)
     const status = playthrough.isEnded ? '到达结局' : '中途停止'
 
+    const finalCurseFromHistory = playthrough.choicesMade.length > 0
+      ? playthrough.choicesMade[playthrough.choicesMade.length - 1].curseAfter
+      : (firstChapter?.currentCurseLevel || 0)
+
     let report = `# 试玩测试报告\n\n`
     report += `- 生成时间：${formatDateTime(Date.now())}\n`
-    report += `- 最终诅咒值：${playthrough.curseValue}\n`
+    report += `- 最终诅咒值：${finalCurseFromHistory}\n`
     report += `- 最终章节：${finalChapter?.sceneName || '未知章节'}\n`
     report += `- 状态：${status}\n\n`
 
@@ -646,7 +666,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     let prevItems: string[] = firstChapter?.keyItems ? [...firstChapter.keyItems] : []
     let prevMemories: string[] = []
     let prevForeshadowing: string[] = []
-    let prevCurse = firstChapter?.currentCurseLevel || 0
 
     if (firstChapter) {
       report += `### 第 1 步：${firstChapter.sceneName}（初始章节）\n\n`
@@ -672,12 +691,34 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (branch.cost) {
         report += `- 代价：${branch.cost}\n`
       }
-      const ruleDelta = project.curseRules
-        .filter(r => !r.chapters.length || r.chapters.includes(nextChapter?.id || ''))
-        .reduce((sum, r) => sum + (r.curseDelta || 0), 0)
-      const totalDelta = branch.curseDelta + ruleDelta
-      const newCurse = prevCurse + totalDelta
-      report += `- 诅咒变化：${totalDelta >= 0 ? '+' : ''}${totalDelta} → 当前 ${newCurse}\n`
+
+      report += `#### 诅咒值变化明细\n\n`
+      report += `- 选择前诅咒值：${choice.curseBefore}\n`
+
+      if (choice.ruleDeltas.length > 0) {
+        report += `- 诅咒规则叠加：\n`
+        choice.ruleDeltas.forEach(rd => {
+          report += `  - ${rd.ruleName}：${rd.delta >= 0 ? '+' : ''}${rd.delta}\n`
+        })
+      } else {
+        report += `- 诅咒规则叠加：（无）\n`
+      }
+      report += `- 分支诅咒增量：${choice.branchDelta >= 0 ? '+' : ''}${choice.branchDelta}\n`
+      if (choice.chapterDelta !== 0) {
+        report += `- 章节基础抬升增量：+${choice.chapterDelta}（下一章节基础诅咒高于当前值，已抬升）\n`
+      } else {
+        report += `- 章节基础抬升增量：0\n`
+      }
+
+      const calcTotal = choice.ruleDeltas.reduce((s, r) => s + r.delta, 0) + choice.branchDelta + choice.chapterDelta
+      report += `- 净变化：${calcTotal >= 0 ? '+' : ''}${calcTotal}\n`
+      report += `- 选择后诅咒值：${choice.curseAfter}`
+      if (choice.clampedTo === 'upper') {
+        report += `（已被限制到上限 100）`
+      } else if (choice.clampedTo === 'lower') {
+        report += `（已被限制到下限 0）`
+      }
+      report += `\n\n`
 
       const newItems = (nextChapter?.keyItems || []).filter(i => !prevItems.includes(i))
       if (newItems.length > 0) {
@@ -698,7 +739,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         report += `### 第 ${idx + 2} 步：${nextChapter.sceneName}\n\n`
         report += `- 场景描述：${nextChapter.narrativeText || '（无描述）'}\n`
         report += `- 氛围：${nextChapter.fearAtmosphere || '（无）'}\n`
-        report += `- 进入时诅咒值：${newCurse}\n`
+        report += `- 进入时诅咒值：${choice.curseAfter}\n`
         if (nextChapter.keyItems.length > 0) {
           report += `- 关键道具（本章节关键）：${nextChapter.keyItems.join('、')}\n`
         }
@@ -713,7 +754,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (branch.foreshadowing) {
         prevForeshadowing = [...prevForeshadowing, branch.foreshadowing]
       }
-      prevCurse = newCurse
     })
 
     report += `## 收集清单\n\n`
@@ -798,11 +838,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       ? project.chapters.find((ch) => ch.id === branch.nextChapterId)
       : null
 
-    const ruleDelta = project.curseRules
-      .filter(r => !r.chapters.length || r.chapters.includes(nextChapter?.id || ''))
-      .reduce((sum, r) => sum + (r.curseDelta || 0), 0)
+    const curseBefore = playthrough.curseValue
 
-    const newCurseValue = playthrough.curseValue + branch.curseDelta + ruleDelta
+    const ruleDeltas: CurseRuleDelta[] = project.curseRules
+      .filter(r => !r.chapters.length || r.chapters.includes(nextChapter?.id || ''))
+      .map(r => ({ ruleName: r.name, delta: r.curseDelta || 0 }))
+    const ruleDeltaSum = ruleDeltas.reduce((sum, rd) => sum + rd.delta, 0)
+
+    const branchDelta = branch.curseDelta
+    const afterRuleAndBranch = curseBefore + branchDelta + ruleDeltaSum
+
+    let chapterDelta = 0
+    const afterChapterLift = nextChapter
+      ? Math.max(afterRuleAndBranch, nextChapter.currentCurseLevel)
+      : afterRuleAndBranch
+    if (nextChapter && nextChapter.currentCurseLevel > afterRuleAndBranch) {
+      chapterDelta = nextChapter.currentCurseLevel - afterRuleAndBranch
+    }
+
+    const clampedValue = Math.min(100, Math.max(0, afterChapterLift))
+    let clampedTo: 'upper' | 'lower' | undefined
+    if (afterChapterLift > 100) clampedTo = 'upper'
+    else if (afterChapterLift < 0) clampedTo = 'lower'
+
+    const curseAfter = clampedValue
 
     const newMemories = branch.characterMemory
       ? [...playthrough.memories, branch.characterMemory]
@@ -816,10 +875,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       ? [...new Set([...playthrough.collectedItems, ...(nextChapter.keyItems || [])])]
       : playthrough.collectedItems
 
-    const finalCurseValue = nextChapter
-      ? Math.max(newCurseValue, nextChapter.currentCurseLevel)
-      : newCurseValue
-
     const isEnded = !branch.nextChapterId || (nextChapter?.isEnding ?? false)
     let endingType = nextChapter?.isEnding ? nextChapter.endingType : undefined
     if (isEnded && !nextChapter) {
@@ -827,15 +882,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       else if (branch.outcomeType === 'irreversible_pollution') endingType = 'bad'
     }
 
+    const choiceRecord: PlaythroughChoice = {
+      chapterId: playthrough.currentChapterId,
+      branchId,
+      curseBefore,
+      curseAfter,
+      ruleDeltas,
+      branchDelta,
+      chapterDelta,
+      clampedTo
+    }
+
     return {
       playthrough: {
         currentChapterId: branch.nextChapterId,
-        curseValue: Math.min(100, Math.max(0, finalCurseValue)),
+        curseValue: curseAfter,
         memories: newMemories,
         visitedChapters: branch.nextChapterId
           ? [...playthrough.visitedChapters, branch.nextChapterId]
           : playthrough.visitedChapters,
-        choicesMade: [...playthrough.choicesMade, { chapterId: playthrough.currentChapterId, branchId }],
+        choicesMade: [...playthrough.choicesMade, choiceRecord],
         foreshadowingNotes: newForeshadowing,
         collectedItems: newItems,
         isEnded,

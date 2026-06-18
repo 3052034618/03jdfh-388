@@ -30,11 +30,34 @@ const saveWindowState = (state) => {
   }
 }
 
+const getRecentProjectPath = () => {
+  return path.join(app.getPath('userData'), 'recent-project.json')
+}
+
+const loadRecentProjectInfo = () => {
+  try {
+    const projectPath = getRecentProjectPath()
+    if (fs.existsSync(projectPath)) {
+      const data = fs.readFileSync(projectPath, 'utf-8')
+      return JSON.parse(data)
+    }
+  } catch (err) {
+    console.error('读取最近项目信息失败:', err)
+  }
+  return null
+}
+
+const saveRecentProjectInfo = (info) => {
+  try {
+    const projectPath = getRecentProjectPath()
+    fs.writeFileSync(projectPath, JSON.stringify(info, null, 2), 'utf-8')
+  } catch (err) {
+    console.error('保存最近项目信息失败:', err)
+  }
+}
+
 const getAssetPath = (...paths) => {
-  const RESOURCES_PATH = app.isPackaged
-    ? path.join(process.resourcesPath, 'app')
-    : path.join(__dirname, '..')
-  return path.join(RESOURCES_PATH, ...paths)
+  return path.join(app.getAppPath(), ...paths)
 }
 
 app.commandLine.appendSwitch('disable-gpu', 'true')
@@ -52,8 +75,8 @@ async function loadDevURL(window, retries = 10, delay = 2000) {
   console.error('无法加载开发服务器，请确认 Vite 开发服务器已在端口 5175 启动')
 }
 
-const ERROR_HTML = `data:text/html;charset=utf-8,
-<!DOCTYPE html>
+const ERROR_HTML_FALLBACK = `data:text/html;charset=utf-8,` + encodeURIComponent(
+  `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -73,31 +96,36 @@ const ERROR_HTML = `data:text/html;charset=utf-8,
     .container {
       text-align: center;
       padding: 40px;
+      max-width: 500px;
     }
     .icon { font-size: 64px; margin-bottom: 20px; }
     .title { font-size: 24px; margin-bottom: 12px; color: #ff6b6b; }
-    .desc { font-size: 14px; color: #a0a0b0; margin-bottom: 24px; line-height: 1.6; }
-    button {
-      padding: 10px 24px;
-      background: linear-gradient(135deg, #8b0000, #6b2d8b);
-      color: white;
-      border: none;
+    .desc { font-size: 14px; color: #a0a0b0; margin-bottom: 16px; line-height: 1.8; }
+    .error-detail {
+      font-size: 12px;
+      color: #6b6b80;
+      background: #15151f;
+      padding: 12px;
       border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
+      text-align: left;
+      word-break: break-all;
+      margin-top: 20px;
     }
-    button:hover { opacity: 0.9; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="icon">⚠️</div>
-    <div class="title">加载失败</div>
-    <div class="desc">页面加载出现错误，请重启应用或重试。<br>如果问题持续存在，请联系开发者。</div>
-    <button onclick="location.reload()">重试</button>
+    <div class="title">应用启动失败</div>
+    <div class="desc">
+      页面资源加载失败，请尝试重启应用。<br>
+      如果问题持续存在，请重新安装或联系开发者。
+    </div>
+    <div class="error-detail" id="errorInfo">请查看应用控制台日志获取详细错误信息。</div>
   </div>
 </body>
-</html>`.replace(/\n/g, '').trim()
+</html>`
+)
 
 function createWindow() {
   const savedState = loadWindowState()
@@ -181,9 +209,7 @@ function createWindow() {
     saveFinalState()
   })
 
-  const isDev = !app.isPackaged
-
-  if (isDev) {
+  if (!app.isPackaged) {
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
       console.log('页面加载失败:', errorCode, errorDescription)
       if (errorCode !== -3) {
@@ -193,21 +219,27 @@ function createWindow() {
     loadDevURL(mainWindow)
     mainWindow.webContents.openDevTools()
   } else {
-    try {
-      const indexPath = getAssetPath('dist', 'index.html')
-      console.log('加载生产页面:', indexPath)
-      mainWindow.loadFile(indexPath).catch((err) => {
-        console.error('loadFile 失败:', err)
-        mainWindow.loadURL(ERROR_HTML)
-      })
-    } catch (err) {
-      console.error('加载生产页面失败:', err)
+    const indexPath = getAssetPath('dist', 'index.html')
+    console.log('Loading production page from:', indexPath)
+    mainWindow.loadFile(indexPath).then(() => {
+      console.log('Production page loaded successfully')
+    }).catch((err) => {
+      console.error('loadFile failed with error:', err)
+      console.error('Attempted path:', indexPath)
+      console.error('app.getAppPath():', app.getAppPath())
       try {
-        mainWindow.loadURL(ERROR_HTML)
-      } catch (fallbackErr) {
-        console.error('加载错误页面也失败:', fallbackErr)
+        const dirToCheck = path.dirname(indexPath)
+        if (fs.existsSync(dirToCheck)) {
+          const files = fs.readdirSync(dirToCheck)
+          console.error('Directory contents:', files)
+        } else {
+          console.error('Directory does not exist:', dirToCheck)
+        }
+      } catch (checkErr) {
+        console.error('Error checking directory:', checkErr)
       }
-    }
+      mainWindow.loadURL(ERROR_HTML_FALLBACK)
+    })
   }
 }
 
@@ -220,7 +252,13 @@ ipcMain.handle('save-project', async (event, data) => {
 
   if (!result.canceled && result.filePath) {
     fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8')
-    return { success: true, path: result.filePath }
+    const fileName = path.basename(result.filePath)
+    saveRecentProjectInfo({
+      filePath: result.filePath,
+      projectFileName: fileName,
+      lastOpenedAt: Date.now()
+    })
+    return { success: true, path: result.filePath, fileName }
   }
   return { success: false }
 })
@@ -234,9 +272,61 @@ ipcMain.handle('load-project', async () => {
 
   if (!result.canceled && result.filePaths.length > 0) {
     const content = fs.readFileSync(result.filePaths[0], 'utf-8')
-    return { success: true, data: JSON.parse(content), path: result.filePaths[0] }
+    const fileName = path.basename(result.filePaths[0])
+    saveRecentProjectInfo({
+      filePath: result.filePaths[0],
+      projectFileName: fileName,
+      lastOpenedAt: Date.now()
+    })
+    return { success: true, data: JSON.parse(content), path: result.filePaths[0], fileName }
   }
   return { success: false }
+})
+
+ipcMain.handle('save-recent-project', async (event, filePath, fileName) => {
+  try {
+    saveRecentProjectInfo({
+      filePath,
+      projectFileName: fileName,
+      lastOpenedAt: Date.now()
+    })
+    return { success: true }
+  } catch (err) {
+    console.error('save-recent-project error:', err)
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-recent-project', async () => {
+  try {
+    const info = loadRecentProjectInfo()
+    return { success: true, data: info }
+  } catch (err) {
+    console.error('get-recent-project error:', err)
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('load-recent-project', async () => {
+  try {
+    const info = loadRecentProjectInfo()
+    if (!info || !info.filePath) {
+      return { success: false, reason: 'no-recent-project' }
+    }
+    if (!fs.existsSync(info.filePath)) {
+      return { success: false, reason: 'file-not-found', data: info }
+    }
+    const content = fs.readFileSync(info.filePath, 'utf-8')
+    return {
+      success: true,
+      data: JSON.parse(content),
+      path: info.filePath,
+      fileName: info.projectFileName
+    }
+  } catch (err) {
+    console.error('load-recent-project error:', err)
+    return { success: false, error: err.message }
+  }
 })
 
 app.whenReady().then(() => {

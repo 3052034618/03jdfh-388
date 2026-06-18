@@ -20,7 +20,10 @@ declare module '*.jpg' {
 
 interface Window {
   electronAPI: {
-    saveProject: (data: any) => Promise<{ success: boolean; path?: string }>
-    loadProject: () => Promise<{ success: boolean; data?: any; path?: string }>
+    saveProject: (data: any) => Promise<{ success: boolean; path?: string; fileName?: string }>
+    loadProject: () => Promise<{ success: boolean; data?: any; path?: string; fileName?: string }>
+    saveRecentProject: (filePath: string, fileName: string) => Promise<{ success: boolean; error?: string }>
+    getRecentProject: () => Promise<{ success: boolean; data?: any; error?: string }>
+    loadRecentProject: () => Promise<{ success: boolean; data?: any; path?: string; fileName?: string; reason?: string; error?: string }>
   }
 }
