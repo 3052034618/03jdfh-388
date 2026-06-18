@@ -4,6 +4,32 @@ const fs = require('fs')
 
 let mainWindow
 
+const getWindowStatePath = () => {
+  return path.join(app.getPath('userData'), 'window-state.json')
+}
+
+const loadWindowState = () => {
+  try {
+    const statePath = getWindowStatePath()
+    if (fs.existsSync(statePath)) {
+      const data = fs.readFileSync(statePath, 'utf-8')
+      return JSON.parse(data)
+    }
+  } catch (err) {
+    console.error('读取窗口状态失败:', err)
+  }
+  return null
+}
+
+const saveWindowState = (state) => {
+  try {
+    const statePath = getWindowStatePath()
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8')
+  } catch (err) {
+    console.error('保存窗口状态失败:', err)
+  }
+}
+
 app.commandLine.appendSwitch('disable-gpu', 'true')
 
 async function loadDevURL(window, retries = 10, delay = 2000) {
@@ -20,9 +46,21 @@ async function loadDevURL(window, retries = 10, delay = 2000) {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const savedState = loadWindowState()
+  const defaultState = {
     width: 1400,
     height: 900,
+    x: undefined,
+    y: undefined,
+    maximized: false
+  }
+  const windowState = savedState ? { ...defaultState, ...savedState } : defaultState
+
+  mainWindow = new BrowserWindow({
+    width: windowState.width,
+    height: windowState.height,
+    x: windowState.x,
+    y: windowState.y,
     minWidth: 1100,
     minHeight: 700,
     backgroundColor: '#0a0a0f',
@@ -32,6 +70,49 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
+  })
+
+  if (windowState.maximized) {
+    mainWindow.maximize()
+  }
+
+  let currentState = { ...windowState }
+
+  mainWindow.on('resize', () => {
+    const [width, height] = mainWindow.getSize()
+    currentState.width = width
+    currentState.height = height
+    saveWindowState(currentState)
+  })
+
+  mainWindow.on('move', () => {
+    const [x, y] = mainWindow.getPosition()
+    currentState.x = x
+    currentState.y = y
+    saveWindowState(currentState)
+  })
+
+  mainWindow.on('maximize', () => {
+    currentState.maximized = true
+    saveWindowState(currentState)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    currentState.maximized = false
+    saveWindowState(currentState)
+  })
+
+  mainWindow.on('close', () => {
+    if (!mainWindow.isMaximized()) {
+      const [width, height] = mainWindow.getSize()
+      const [x, y] = mainWindow.getPosition()
+      currentState.width = width
+      currentState.height = height
+      currentState.x = x
+      currentState.y = y
+    }
+    currentState.maximized = mainWindow.isMaximized()
+    saveWindowState(currentState)
   })
 
   const isDev = !app.isPackaged

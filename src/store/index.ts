@@ -11,6 +11,7 @@ interface AppState {
   project: Project
   currentPage: 'editor' | 'validator' | 'playthrough'
   selectedChapterId: string | null
+  selectedChapterIds: string[]
   selectedBranchId: string | null
   playthrough: PlaythroughState
   validationIssues: ValidationIssue[]
@@ -18,6 +19,13 @@ interface AppState {
   setCurrentPage: (page: 'editor' | 'validator' | 'playthrough') => void
   setSelectedChapter: (id: string | null) => void
   setSelectedBranch: (id: string | null) => void
+  toggleChapterSelection: (id: string) => void
+  selectChapterRange: (startId: string, endId: string) => void
+  clearChapterSelection: () => void
+  selectAllChapters: () => void
+  moveSelectedChapters: (dx: number, dy: number) => void
+  duplicateSelectedChapters: () => void
+  alignSelectedChapters: (align: 'left' | 'right' | 'top' | 'bottom' | 'horizontal' | 'vertical') => void
 
   updateProjectMeta: (title: string, description: string) => void
 
@@ -64,7 +72,13 @@ const createEmptyProject = (): Project => ({
   updatedAt: Date.now(),
   chapters: [],
   curseRules: [],
-  symbols: {}
+  symbols: {},
+  playthrough: null,
+  uiState: {
+    currentPage: 'editor',
+    selectedChapterIds: [],
+    selectedBranchId: null
+  }
 })
 
 const createInitialPlaythrough = (): PlaythroughState => ({
@@ -98,13 +112,141 @@ export const useAppStore = create<AppState>((set, get) => ({
   project: createEmptyProject(),
   currentPage: 'editor',
   selectedChapterId: null,
+  selectedChapterIds: [],
   selectedBranchId: null,
   playthrough: createInitialPlaythrough(),
   validationIssues: [],
 
   setCurrentPage: (page) => set({ currentPage: page }),
-  setSelectedChapter: (id) => set({ selectedChapterId: id, selectedBranchId: null }),
+  setSelectedChapter: (id) => set({ selectedChapterId: id, selectedChapterIds: id ? [id] : [], selectedBranchId: null }),
   setSelectedBranch: (id) => set({ selectedBranchId: id }),
+  toggleChapterSelection: (id) => set((state) => ({
+    selectedChapterIds: state.selectedChapterIds.includes(id)
+      ? state.selectedChapterIds.filter((i) => i !== id)
+      : [...state.selectedChapterIds, id]
+  })),
+  selectChapterRange: (startId, endId) => set((state) => {
+    const chapters = state.project.chapters
+    const startIdx = chapters.findIndex((c) => c.id === startId)
+    const endIdx = chapters.findIndex((c) => c.id === endId)
+    if (startIdx === -1 || endIdx === -1) return state
+    const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx]
+    return {
+      selectedChapterIds: chapters.slice(from, to + 1).map((c) => c.id)
+    }
+  }),
+  clearChapterSelection: () => set({ selectedChapterIds: [], selectedChapterId: null }),
+  selectAllChapters: () => set((state) => ({
+    selectedChapterIds: state.project.chapters.map((c) => c.id)
+  })),
+  moveSelectedChapters: (dx, dy) => set((state) => ({
+    project: {
+      ...state.project,
+      chapters: state.project.chapters.map((ch) =>
+        state.selectedChapterIds.includes(ch.id)
+          ? { ...ch, x: ch.x + dx, y: ch.y + dy }
+          : ch
+      ),
+      updatedAt: Date.now()
+    }
+  })),
+  duplicateSelectedChapters: () => set((state) => {
+    const copies: Chapter[] = state.project.chapters
+      .filter((ch) => state.selectedChapterIds.includes(ch.id))
+      .map((original) => {
+        const copy: Chapter = JSON.parse(JSON.stringify(original))
+        copy.id = uuidv4()
+        copy.sceneName = original.sceneName + ' (副本)'
+        copy.x = original.x + 30
+        copy.y = original.y + 30
+        copy.branches = original.branches.map((br) => ({
+          ...br,
+          id: uuidv4(),
+          structuredConditions: br.structuredConditions?.map((c) => ({ ...c, id: uuidv4() })) || []
+        }))
+        return copy
+      })
+    return {
+      project: {
+        ...state.project,
+        chapters: [...state.project.chapters, ...copies],
+        updatedAt: Date.now()
+      }
+    }
+  }),
+  alignSelectedChapters: (align) => set((state) => {
+    const selected = state.project.chapters.filter((ch) =>
+      state.selectedChapterIds.includes(ch.id)
+    )
+    if (selected.length < 2) return state
+
+    let updatedChapters = state.project.chapters
+
+    switch (align) {
+      case 'left': {
+        const minX = Math.min(...selected.map((c) => c.x))
+        updatedChapters = updatedChapters.map((ch) =>
+          state.selectedChapterIds.includes(ch.id) ? { ...ch, x: minX } : ch
+        )
+        break
+      }
+      case 'right': {
+        const maxX = Math.max(...selected.map((c) => c.x))
+        updatedChapters = updatedChapters.map((ch) =>
+          state.selectedChapterIds.includes(ch.id) ? { ...ch, x: maxX } : ch
+        )
+        break
+      }
+      case 'top': {
+        const minY = Math.min(...selected.map((c) => c.y))
+        updatedChapters = updatedChapters.map((ch) =>
+          state.selectedChapterIds.includes(ch.id) ? { ...ch, y: minY } : ch
+        )
+        break
+      }
+      case 'bottom': {
+        const maxY = Math.max(...selected.map((c) => c.y))
+        updatedChapters = updatedChapters.map((ch) =>
+          state.selectedChapterIds.includes(ch.id) ? { ...ch, y: maxY } : ch
+        )
+        break
+      }
+      case 'horizontal': {
+        const avgY = selected.reduce((sum, c) => sum + c.y, 0) / selected.length
+        const sorted = [...selected].sort((a, b) => a.x - b.x)
+        const minX = sorted[0].x
+        const maxX = sorted[sorted.length - 1].x
+        const step = sorted.length > 1 ? (maxX - minX) / (sorted.length - 1) : 0
+        updatedChapters = updatedChapters.map((ch) => {
+          if (!state.selectedChapterIds.includes(ch.id)) return ch
+          const idx = sorted.findIndex((c) => c.id === ch.id)
+          return { ...ch, x: minX + step * idx, y: avgY }
+        })
+        break
+      }
+      case 'vertical': {
+        const avgX = selected.reduce((sum, c) => sum + c.x, 0) / selected.length
+        const sorted = [...selected].sort((a, b) => a.y - b.y)
+        const minY = sorted[0].y
+        const maxY = sorted[sorted.length - 1].y
+        const step = sorted.length > 1 ? (maxY - minY) / (sorted.length - 1) : 0
+        updatedChapters = updatedChapters.map((ch) => {
+          if (!state.selectedChapterIds.includes(ch.id)) return ch
+          const idx = sorted.findIndex((c) => c.id === ch.id)
+          return { ...ch, x: avgX, y: minY + step * idx }
+        })
+        break
+      }
+    }
+
+    return {
+      project: {
+        ...state.project,
+        chapters: updatedChapters,
+        updatedAt: Date.now()
+      }
+    }
+  }),
 
   updateProjectMeta: (title, description) => set((state) => ({
     project: { ...state.project, title, description, updatedAt: Date.now() }
@@ -518,20 +660,40 @@ export const useAppStore = create<AppState>((set, get) => ({
         symbolOverrides: br.symbolOverrides || {}
       }))
     }))
+    const playthroughState = project.playthrough ?? createInitialPlaythrough()
+    const uiState = project.uiState ?? {
+      currentPage: 'editor' as const,
+      selectedChapterIds: [] as string[],
+      selectedBranchId: null as string | null
+    }
     set({
       project: {
         ...project,
         chapters: normalizedChapters,
         curseRules: project.curseRules.map(r => ({ ...r, curseDelta: r.curseDelta || 0 })),
+        playthrough: project.playthrough ?? null,
+        uiState,
         updatedAt: Date.now()
       },
+      currentPage: uiState.currentPage,
       selectedChapterId: null,
-      selectedBranchId: null
+      selectedChapterIds: uiState.selectedChapterIds,
+      selectedBranchId: uiState.selectedBranchId,
+      playthrough: playthroughState
     })
   },
 
   getProjectForSave: () => {
     const state = get()
-    return { ...state.project, updatedAt: Date.now() }
+    return {
+      ...state.project,
+      playthrough: state.playthrough,
+      uiState: {
+        currentPage: state.currentPage,
+        selectedChapterIds: state.selectedChapterIds,
+        selectedBranchId: state.selectedBranchId
+      },
+      updatedAt: Date.now()
+    }
   }
 }))

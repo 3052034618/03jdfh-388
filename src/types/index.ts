@@ -59,6 +59,12 @@ export interface Project {
   chapters: Chapter[]
   curseRules: CurseRule[]
   symbols: Record<string, string>
+  playthrough: PlaythroughState | null
+  uiState: {
+    currentPage: 'editor' | 'validator' | 'playthrough'
+    selectedChapterIds: string[]
+    selectedBranchId: string | null
+  }
 }
 
 export interface PlaythroughState {
@@ -95,6 +101,10 @@ export interface ValidationIssue {
   relatedBranchIds: string[]
   relatedRuleIds?: string[]
   relatedSymbols?: string[]
+  upstreamChapterIds: string[]
+  downstreamChapterIds: string[]
+  upstreamBranchIds: string[]
+  downstreamBranchIds: string[]
 }
 
 export interface ConditionCheckResult {

@@ -325,6 +325,12 @@ export function loadSampleProject(): Project {
       '🔪': '牺牲与终结的工具',
       '🕯': '仪式蜡烛，火焰代表守护之光',
       '床': '梦境与死亡的过渡点'
+    },
+    playthrough: null,
+    uiState: {
+      currentPage: 'editor',
+      selectedChapterIds: [],
+      selectedBranchId: null
     }
   }
 }

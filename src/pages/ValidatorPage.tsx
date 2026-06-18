@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../store'
 import type { ValidationIssue } from '../types'
 
@@ -36,6 +36,8 @@ export default function ValidatorPage() {
   const setSelectedChapter = useAppStore((s) => s.setSelectedChapter)
   const jumpToIssue = useAppStore((s) => s.jumpToIssue)
 
+  const [expandedIssues, setExpandedIssues] = useState<Record<string, boolean>>({})
+
   useEffect(() => {
     runValidation()
   }, [project])
@@ -53,6 +55,32 @@ export default function ValidatorPage() {
     return issue.relatedChapterIds
       .map((id) => project.chapters.find((ch) => ch.id === id))
       .filter(Boolean)
+  }
+
+  const getChapterById = (id: string) => project.chapters.find((ch) => ch.id === id)
+
+  const getBranchById = (id: string) => {
+    for (const ch of project.chapters) {
+      const br = ch.branches.find((b) => b.id === id)
+      if (br) return { branch: br, chapter: ch }
+    }
+    return null
+  }
+
+  const toggleExpand = (issueId: string) => {
+    setExpandedIssues((prev) => ({
+      ...prev,
+      [issueId]: !prev[issueId]
+    }))
+  }
+
+  const hasLinkInfo = (issue: ValidationIssue) => {
+    return (
+      issue.upstreamChapterIds.length > 0 ||
+      issue.downstreamChapterIds.length > 0 ||
+      issue.upstreamBranchIds.length > 0 ||
+      issue.downstreamBranchIds.length > 0
+    )
   }
 
   return (
@@ -108,6 +136,9 @@ export default function ValidatorPage() {
         ) : (
           issues.map((issue) => {
             const relatedChapters = getRelatedChapters(issue)
+            const isExpanded = expandedIssues[issue.id] || false
+            const linkInfoAvailable = hasLinkInfo(issue)
+
             return (
               <div key={issue.id} className={`issue-card ${issue.severity}`}>
                 <div className="issue-header">
@@ -122,13 +153,24 @@ export default function ValidatorPage() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    className="btn btn-ghost btn-small"
-                    onClick={() => jumpToIssue(issue)}
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    📍 跳转到编辑器
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    {linkInfoAvailable && (
+                      <button
+                        className="btn btn-ghost btn-small"
+                        onClick={() => toggleExpand(issue.id)}
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        {isExpanded ? '收起链路' : '🔗 展开相关链路'}
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-ghost btn-small"
+                      onClick={() => jumpToIssue(issue)}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      📍 跳转到编辑器
+                    </button>
+                  </div>
                 </div>
                 <div className="issue-description">{issue.description}</div>
                 {relatedChapters.length > 0 && (
@@ -146,6 +188,112 @@ export default function ValidatorPage() {
                         </button>
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {isExpanded && linkInfoAvailable && (
+                  <div className="issue-link-info" style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    backgroundColor: 'rgba(0,0,0,0.2)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px', color: 'var(--text-primary)' }}>
+                      🔗 相关链路信息
+                    </div>
+
+                    {issue.upstreamChapterIds.length > 0 && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginRight: '8px' }}>
+                          ⬅️ 上游章节：
+                        </span>
+                        {issue.upstreamChapterIds.map((id, i) => {
+                          const ch = getChapterById(id)
+                          return (
+                            <span key={id}>
+                              {i > 0 && '、'}
+                              <button
+                                className="btn btn-ghost btn-small"
+                                onClick={() => handleJumpTo(id)}
+                                style={{ color: 'var(--accent-info)', padding: '0 4px' }}
+                              >
+                                {ch?.sceneName || id}
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {issue.downstreamChapterIds.length > 0 && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginRight: '8px' }}>
+                          ➡️ 下游章节：
+                        </span>
+                        {issue.downstreamChapterIds.map((id, i) => {
+                          const ch = getChapterById(id)
+                          return (
+                            <span key={id}>
+                              {i > 0 && '、'}
+                              <button
+                                className="btn btn-ghost btn-small"
+                                onClick={() => handleJumpTo(id)}
+                                style={{ color: 'var(--accent-info)', padding: '0 4px' }}
+                              >
+                                {ch?.sceneName || id}
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {issue.upstreamBranchIds.length > 0 && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginRight: '8px' }}>
+                          🔗 上游分支：
+                        </span>
+                        {issue.upstreamBranchIds.map((id, i) => {
+                          const brInfo = getBranchById(id)
+                          return (
+                            <span key={id}>
+                              {i > 0 && '、'}
+                              <button
+                                className="btn btn-ghost btn-small"
+                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id)}
+                                style={{ color: 'var(--accent-warning)', padding: '0 4px' }}
+                              >
+                                {brInfo?.branch.choiceText || id}
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {issue.downstreamBranchIds.length > 0 && (
+                      <div>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginRight: '8px' }}>
+                          🔗 下游分支：
+                        </span>
+                        {issue.downstreamBranchIds.map((id, i) => {
+                          const brInfo = getBranchById(id)
+                          return (
+                            <span key={id}>
+                              {i > 0 && '、'}
+                              <button
+                                className="btn btn-ghost btn-small"
+                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id)}
+                                style={{ color: 'var(--accent-warning)', padding: '0 4px' }}
+                              >
+                                {brInfo?.branch.choiceText || id}
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
