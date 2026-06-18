@@ -88,19 +88,31 @@ export default function ChapterEditor({ chapter }: Props) {
         </div>
 
         {chapter.isEnding && (
-          <div className="form-group">
-            <label className="form-label">结局类型</label>
-            <select
-              className="form-select"
-              value={chapter.endingType || 'neutral'}
-              onChange={(e) => updateChapter(chapter.id, { endingType: e.target.value as any })}
-            >
-              <option value="good">好结局</option>
-              <option value="neutral">普通结局</option>
-              <option value="bad">坏结局</option>
-              <option value="death">死亡结局</option>
-            </select>
-          </div>
+          <>
+            <div className="form-group">
+              <label className="form-label">结局类型</label>
+              <select
+                className="form-select"
+                value={chapter.endingType || 'neutral'}
+                onChange={(e) => updateChapter(chapter.id, { endingType: e.target.value as any })}
+              >
+                <option value="good">好结局</option>
+                <option value="neutral">普通结局</option>
+                <option value="bad">坏结局</option>
+                <option value="death">死亡结局</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">结局描述</label>
+              <textarea
+                className="form-textarea"
+                value={chapter.endingDescription || ''}
+                onChange={(e) => updateChapter(chapter.id, { endingDescription: e.target.value })}
+                placeholder="描述这个结局的详细说明..."
+                rows={4}
+              />
+            </div>
+          </>
         )}
 
         <div className="form-group">

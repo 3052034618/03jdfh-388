@@ -4,6 +4,21 @@ const fs = require('fs')
 
 let mainWindow
 
+app.commandLine.appendSwitch('disable-gpu', 'true')
+
+async function loadDevURL(window, retries = 10, delay = 2000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await window.loadURL('http://localhost:5175')
+      return
+    } catch (err) {
+      console.log(`加载开发服务器失败 (尝试 ${i + 1}/${retries})，${delay}ms 后重试...`, err.message)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  console.error('无法加载开发服务器，请确认 Vite 开发服务器已在端口 5175 启动')
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -22,10 +37,20 @@ function createWindow() {
   const isDev = !app.isPackaged
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5175')
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.log('页面加载失败:', errorCode, errorDescription)
+      if (errorCode !== -3) {
+        loadDevURL(mainWindow)
+      }
+    })
+    loadDevURL(mainWindow)
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
+    try {
+      mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
+    } catch (err) {
+      console.error('加载生产页面失败:', err)
+    }
   }
 }
 

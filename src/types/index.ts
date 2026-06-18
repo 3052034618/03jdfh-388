@@ -1,16 +1,27 @@
 export type BranchOutcomeType = 'normal' | 'mild_mutation' | 'irreversible_pollution' | 'death_ending'
 
+export type ConditionOperator = 'has_item' | 'no_item' | 'has_memory' | 'has_foreshadowing' | 'curse_min' | 'curse_max' | 'visited_chapter' | 'custom'
+
+export interface TriggerConditionItem {
+  id: string
+  type: ConditionOperator
+  value: string
+  description: string
+}
+
 export interface Branch {
   id: string
   choiceText: string
   cost: string
   triggerCondition: string
+  structuredConditions: TriggerConditionItem[]
   characterMemory: string
   outcomeType: BranchOutcomeType
   curseDelta: number
   nextChapterId: string | null
   foreshadowing: string
   symbols: string[]
+  symbolOverrides: Record<string, string>
   notes: string
 }
 
@@ -24,6 +35,7 @@ export interface Chapter {
   branches: Branch[]
   isEnding: boolean
   endingType?: 'good' | 'bad' | 'neutral' | 'death'
+  endingDescription?: string
   x: number
   y: number
 }
@@ -34,6 +46,7 @@ export interface CurseRule {
   description: string
   triggerCondition: string
   curseEffect: string
+  curseDelta: number
   chapters: string[]
 }
 
@@ -55,18 +68,38 @@ export interface PlaythroughState {
   visitedChapters: string[]
   choicesMade: { chapterId: string; branchId: string }[]
   foreshadowingNotes: string[]
+  collectedItems: string[]
   isEnded: boolean
   endingType?: string
 }
 
+export type ValidationIssueType =
+  | 'unclosed_branch'
+  | 'curse_contradiction'
+  | 'unexplained_symbol'
+  | 'symbol_inconsistent'
+  | 'orphan_chapter'
+  | 'missing_connection'
+  | 'missing_ending_description'
+  | 'rule_conflict'
+  | 'empty_conditions'
+  | 'circular_reference'
+
 export interface ValidationIssue {
   id: string
-  type: 'unclosed_branch' | 'curse_contradiction' | 'unexplained_symbol' | 'orphan_chapter' | 'missing_connection'
+  type: ValidationIssueType
   severity: 'warning' | 'error' | 'info'
   title: string
   description: string
   relatedChapterIds: string[]
   relatedBranchIds: string[]
+  relatedRuleIds?: string[]
+  relatedSymbols?: string[]
+}
+
+export interface ConditionCheckResult {
+  available: boolean
+  reasons: string[]
 }
 
 export const OUTCOME_TYPE_CONFIG: Record<BranchOutcomeType, { label: string; color: string; bgColor: string; borderColor: string }> = {
@@ -94,4 +127,15 @@ export const OUTCOME_TYPE_CONFIG: Record<BranchOutcomeType, { label: string; col
     bgColor: 'rgba(20, 20, 25, 0.8)',
     borderColor: '#2f2f3f'
   }
+}
+
+export const CONDITION_TYPE_LABELS: Record<ConditionOperator, { label: string; icon: string }> = {
+  has_item: { label: '拥有道具', icon: '🎒' },
+  no_item: { label: '未拥有道具', icon: '🚫' },
+  has_memory: { label: '拥有记忆', icon: '🧠' },
+  has_foreshadowing: { label: '触发伏笔', icon: '🌑' },
+  curse_min: { label: '诅咒值 >=', icon: '💀' },
+  curse_max: { label: '诅咒值 <=', icon: '✨' },
+  visited_chapter: { label: '访问过章节', icon: '📍' },
+  custom: { label: '自定义条件', icon: '📝' }
 }

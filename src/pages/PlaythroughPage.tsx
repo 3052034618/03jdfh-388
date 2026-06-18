@@ -58,6 +58,19 @@ function PlaythroughStats({ playthrough }: { playthrough: PlaythroughState }) {
         </div>
       )}
 
+      {playthrough.collectedItems.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div className="playthrough-sidebar-title">🎒 收集的道具 ({playthrough.collectedItems.length})</div>
+          <div className="tags-container">
+            {playthrough.collectedItems.map((item, i) => (
+              <span key={i} className="tag">
+                🎒 {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {playthrough.foreshadowingNotes.length > 0 && (
         <div>
           <div className="playthrough-sidebar-title">🌑 伏笔暗示</div>
@@ -170,47 +183,81 @@ export default function PlaythroughPage() {
                 <div className="playthrough-choices">
                   {currentChapter.branches.map((branch) => {
                     const cfg = OUTCOME_TYPE_CONFIG[branch.outcomeType]
+                    const check = useAppStore.getState().checkBranchConditions(branch)
+                    const isDisabled = !check.available
                     return (
-                      <button
-                        key={branch.id}
-                        className="playthrough-choice"
-                        onClick={() => makeChoice(branch.id)}
-                        style={{
-                          borderLeft: `4px solid ${cfg.borderColor}`,
-                          background: cfg.bgColor
-                        }}
-                      >
-                        <span style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 500 }}>{branch.choiceText}</div>
-                          {branch.triggerCondition && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                              条件：{branch.triggerCondition}
+                      <div key={branch.id} style={{ position: 'relative' }}>
+                        <button
+                          className="playthrough-choice"
+                          onClick={() => !isDisabled && makeChoice(branch.id)}
+                          disabled={isDisabled}
+                          style={{
+                            borderLeft: `4px solid ${cfg.borderColor}`,
+                            background: isDisabled ? 'var(--bg-secondary)' : cfg.bgColor,
+                            opacity: isDisabled ? 0.4 : 1,
+                            cursor: isDisabled ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}>
+                              {branch.choiceText}
+                              {isDisabled && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  color: 'var(--accent-blood)',
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  🔒 条件不满足
+                                </span>
+                              )}
                             </div>
-                          )}
-                          {branch.cost && (
-                            <div style={{ fontSize: '11px', color: 'var(--accent-warning)', marginTop: '4px' }}>
-                              代价：{branch.cost}
-                            </div>
-                          )}
-                        </span>
-                        <div style={{ textAlign: 'right' }}>
-                          <span
-                            className={`choice-curse-delta ${branch.curseDelta < 0 ? 'negative' : ''}`}
-                          >
-                            {branch.curseDelta >= 0 ? '+' : ''}{branch.curseDelta} 诅咒
+                            {branch.triggerCondition && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                条件：{branch.triggerCondition}
+                              </div>
+                            )}
+                            {isDisabled && check.reasons.length > 0 && (
+                              <div style={{ marginTop: '6px' }}>
+                                {check.reasons.map((reason, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      fontSize: '11px',
+                                      color: 'var(--accent-blood)',
+                                      marginTop: '2px'
+                                    }}
+                                  >
+                                    ✗ {reason}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {branch.cost && (
+                              <div style={{ fontSize: '11px', color: 'var(--accent-warning)', marginTop: '4px' }}>
+                                代价：{branch.cost}
+                              </div>
+                            )}
                           </span>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              color: cfg.color,
-                              marginTop: '4px',
-                              fontWeight: 600
-                            }}
-                          >
-                            {cfg.label}
+                          <div style={{ textAlign: 'right' }}>
+                            <span
+                              className={`choice-curse-delta ${branch.curseDelta < 0 ? 'negative' : ''}`}
+                            >
+                              {branch.curseDelta >= 0 ? '+' : ''}{branch.curseDelta} 诅咒
+                            </span>
+                            <div
+                              style={{
+                                fontSize: '10px',
+                                color: cfg.color,
+                                marginTop: '4px',
+                                fontWeight: 600
+                              }}
+                            >
+                              {cfg.label}
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                      </div>
                     )
                   })}
                 </div>

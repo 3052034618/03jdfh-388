@@ -74,6 +74,16 @@ export default function RulesPanel() {
                     onChange={(e) => updateCurseRule(rule.id, { curseEffect: e.target.value })}
                   />
                 </div>
+                <div style={{ marginTop: '6px' }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    style={{ fontSize: '11px', padding: '4px 8px' }}
+                    placeholder="诅咒增量"
+                    value={rule.curseDelta}
+                    onChange={(e) => updateCurseRule(rule.id, { curseDelta: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
                 <button
                   className="btn btn-danger btn-small"
                   style={{ width: '100%', marginTop: '6px' }}

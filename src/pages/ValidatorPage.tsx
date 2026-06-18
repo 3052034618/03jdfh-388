@@ -6,16 +6,26 @@ const TYPE_LABELS: Record<ValidationIssue['type'], string> = {
   unclosed_branch: '未收束分支',
   curse_contradiction: '诅咒矛盾',
   unexplained_symbol: '符号问题',
+  symbol_inconsistent: '符号解释冲突',
   orphan_chapter: '孤立章节',
-  missing_connection: '无效连接'
+  missing_connection: '无效连接',
+  missing_ending_description: '结局描述缺失',
+  rule_conflict: '规则冲突',
+  empty_conditions: '空条件',
+  circular_reference: '循环引用'
 }
 
 const TYPE_ICONS: Record<ValidationIssue['type'], string> = {
   unclosed_branch: '🔀',
   curse_contradiction: '⚠️',
   unexplained_symbol: '🔣',
+  symbol_inconsistent: '🔄',
   orphan_chapter: '🏚️',
-  missing_connection: '🔗'
+  missing_connection: '🔗',
+  missing_ending_description: '📝',
+  rule_conflict: '⚔️',
+  empty_conditions: '📋',
+  circular_reference: '♻️'
 }
 
 export default function ValidatorPage() {
@@ -24,6 +34,7 @@ export default function ValidatorPage() {
   const runValidation = useAppStore((s) => s.runValidation)
   const setCurrentPage = useAppStore((s) => s.setCurrentPage)
   const setSelectedChapter = useAppStore((s) => s.setSelectedChapter)
+  const jumpToIssue = useAppStore((s) => s.jumpToIssue)
 
   useEffect(() => {
     runValidation()
@@ -100,9 +111,9 @@ export default function ValidatorPage() {
             return (
               <div key={issue.id} className={`issue-card ${issue.severity}`}>
                 <div className="issue-header">
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
                     <span style={{ fontSize: '24px' }}>{TYPE_ICONS[issue.type]}</span>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div className="issue-title">
                         {TYPE_LABELS[issue.type]} · {issue.title}
                       </div>
@@ -111,6 +122,13 @@ export default function ValidatorPage() {
                       </span>
                     </div>
                   </div>
+                  <button
+                    className="btn btn-ghost btn-small"
+                    onClick={() => jumpToIssue(issue)}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    📍 跳转到编辑器
+                  </button>
                 </div>
                 <div className="issue-description">{issue.description}</div>
                 {relatedChapters.length > 0 && (

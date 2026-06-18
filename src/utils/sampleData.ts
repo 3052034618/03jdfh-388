@@ -37,12 +37,14 @@ export function loadSampleProject(): Project {
             choiceText: '拿起日记仔细阅读',
             cost: '时间流逝，意识开始模糊',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '祖父在日记中反复提到"月圆之夜"和"血祭"',
             outcomeType: 'normal',
             curseDelta: 5,
             nextChapterId: ch2Id,
             foreshadowing: '日记最后一页写着："如果你在读这个，说明已经太迟了。"',
             symbols: ['☽', '血'],
+            symbolOverrides: {},
             notes: ''
           },
           {
@@ -50,12 +52,14 @@ export function loadSampleProject(): Project {
             choiceText: '端详那张老照片',
             cost: '发现令人不安的细节',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '照片上多了一个不该存在的人影',
             outcomeType: 'mild_mutation',
             curseDelta: 10,
             nextChapterId: ch3Id,
             foreshadowing: '照片背面写着"1987年，最后一次完整的家族合影"',
             symbols: ['◯'],
+            symbolOverrides: {},
             notes: ''
           },
           {
@@ -63,12 +67,14 @@ export function loadSampleProject(): Project {
             choiceText: '无视这些，直接上楼',
             cost: '错过关键信息',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '你感觉到身后有脚步声，但回头什么都没有',
             outcomeType: 'normal',
             curseDelta: 2,
             nextChapterId: ch4Id,
             foreshadowing: '楼梯扶手上的木纹，似乎组成了某种图案',
             symbols: [],
+            symbolOverrides: {},
             notes: ''
           }
         ],
@@ -89,12 +95,14 @@ export function loadSampleProject(): Project {
             choiceText: '勇敢地走向地下室',
             cost: '直面恐惧',
             triggerCondition: '诅咒值 >= 5',
+            structuredConditions: [],
             characterMemory: '你看到了墙壁上那些和宣纸上一模一样的符号',
             outcomeType: 'normal',
             curseDelta: 15,
             nextChapterId: ch5Id,
             foreshadowing: '地下室的门是从外面锁上的...但里面有东西在推门',
             symbols: ['⬡', '☽'],
+            symbolOverrides: {},
             notes: ''
           },
           {
@@ -102,12 +110,14 @@ export function loadSampleProject(): Project {
             choiceText: '立刻逃离老宅',
             cost: '诅咒标记已刻入血脉',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '你跑出门时，看到玻璃窗上自己的倒影在微笑，但你没有',
             outcomeType: 'irreversible_pollution',
             curseDelta: 25,
             nextChapterId: ch6Id,
             foreshadowing: '逃跑并不能解决问题，它只会跟着你',
             symbols: ['影'],
+            symbolOverrides: {},
             notes: ''
           }
         ],
@@ -128,12 +138,14 @@ export function loadSampleProject(): Project {
             choiceText: '烧掉照片',
             cost: '激怒了什么',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '照片燃烧时发出了凄厉的尖叫，像是活物',
             outcomeType: 'irreversible_pollution',
             curseDelta: 20,
             nextChapterId: ch5Id,
             foreshadowing: '火光中，你看到那个人影从照片里走了出来',
             symbols: ['🔥'],
+            symbolOverrides: {},
             notes: ''
           },
           {
@@ -141,12 +153,14 @@ export function loadSampleProject(): Project {
             choiceText: '把照片放回原处',
             cost: '它记住了你',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '你放下照片时，注意到那个人的位置似乎变了',
             outcomeType: 'mild_mutation',
             curseDelta: 12,
             nextChapterId: ch4Id,
             foreshadowing: '有些东西，一旦被看见就无法回头',
             symbols: ['◯'],
+            symbolOverrides: {},
             notes: ''
           }
         ],
@@ -167,12 +181,14 @@ export function loadSampleProject(): Project {
             choiceText: '推开那扇多出来的门',
             cost: '未知的代价',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '门后是一个祭堂，中央的祭坛上放着一面古铜镜',
             outcomeType: 'normal',
             curseDelta: 18,
             nextChapterId: ch5Id,
             foreshadowing: '镜子里映照出的，不是现在的你',
             symbols: ['⌘', '镜'],
+            symbolOverrides: {},
             notes: ''
           },
           {
@@ -180,12 +196,14 @@ export function loadSampleProject(): Project {
             choiceText: '尝试打开其他房间',
             cost: '浪费的时间让它靠近了',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '每个房间里都有一张床，每张床上都躺着一个你',
             outcomeType: 'death_ending',
             curseDelta: 0,
             nextChapterId: null,
             foreshadowing: '你分不清楚哪个才是真正的自己了',
             symbols: ['床'],
+            symbolOverrides: {},
             notes: '死亡结局：在无数个自我中迷失'
           }
         ],
@@ -206,12 +224,14 @@ export function loadSampleProject(): Project {
             choiceText: '读完祭文，继承诅咒',
             cost: '失去身为人类的某些东西',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '你感觉自己的影子开始独立行动',
             outcomeType: 'irreversible_pollution',
             curseDelta: 50,
             nextChapterId: null,
             foreshadowing: '你成为了新的守护者，但守护的是什么？',
             symbols: ['☽', '⬡'],
+            symbolOverrides: {},
             notes: '结局：成为新的诅咒守护者'
           },
           {
@@ -219,12 +239,14 @@ export function loadSampleProject(): Project {
             choiceText: '用匕首刺向镜中的自己',
             cost: '生命',
             triggerCondition: '诅咒值 >= 20',
+            structuredConditions: [],
             characterMemory: '镜中你的表情变成了惊恐，这是你第一次看到它流露出感情',
             outcomeType: 'death_ending',
             curseDelta: 0,
             nextChapterId: null,
             foreshadowing: '诅咒和你一同碎裂，还是你成为了它的一部分？',
             symbols: ['🔪', '镜'],
+            symbolOverrides: {},
             notes: '死亡结局：与诅咒同归于尽'
           },
           {
@@ -232,12 +254,14 @@ export function loadSampleProject(): Project {
             choiceText: '熄灭所有蜡烛',
             cost: '在黑暗中面对',
             triggerCondition: '无',
+            structuredConditions: [],
             characterMemory: '黑暗中，你感觉到有无数只手在触碰你的身体',
             outcomeType: 'normal',
             curseDelta: 30,
             nextChapterId: ch6Id,
             foreshadowing: '黑暗比你想象的要温暖',
             symbols: ['🕯'],
+            symbolOverrides: {},
             notes: ''
           }
         ],
@@ -255,6 +279,7 @@ export function loadSampleProject(): Project {
         branches: [],
         isEnding: true,
         endingType: 'bad',
+        endingDescription: '你成为了家族诅咒的新载体，带着它的印记继续生活。影子会偶尔独立行动，镜中会浮现陌生的微笑，但你已经学会了与它共存。这是血脉的宿命，也是你无法逃避的责任。',
         x: 1040,
         y: 280
       }
@@ -266,6 +291,7 @@ export function loadSampleProject(): Project {
         description: '家族直系血亲天生带有诅咒印记，随年龄增长逐渐显现。',
         triggerCondition: '进入老宅或接触家族物品',
         curseEffect: '诅咒值最低为5，无法通过任何方式降低至0',
+        curseDelta: 5,
         chapters: [ch1Id, ch2Id]
       },
       {
@@ -274,6 +300,7 @@ export function loadSampleProject(): Project {
         description: '当玩家目击到超自然现象时，即与诅咒建立了连接。',
         triggerCondition: '查看照片、镜子、或任何灵异现象',
         curseEffect: '诅咒值 +10，且该章节之后的所有诅咒增量翻倍',
+        curseDelta: 10,
         chapters: [ch3Id, ch4Id]
       },
       {
@@ -282,6 +309,7 @@ export function loadSampleProject(): Project {
         description: '特定时间点诅咒的力量达到顶峰。',
         triggerCondition: '进入地下室或祭堂',
         curseEffect: '所有恐惧判定难度提升，诅咒伤害加深',
+        curseDelta: 8,
         chapters: [ch2Id, ch5Id]
       }
     ],
