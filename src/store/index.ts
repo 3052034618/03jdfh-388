@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   Project, Chapter, Branch, CurseRule, PlaythroughState,
-  ValidationIssue, ConditionCheckResult, TriggerConditionItem
+  ValidationIssue, ConditionCheckResult, TriggerConditionItem, Snapshot
 } from '../types'
 import { validateProject } from '../utils/validation'
 import { CONDITION_TYPE_LABELS } from '../types'
@@ -15,6 +15,7 @@ interface AppState {
   selectedBranchId: string | null
   playthrough: PlaythroughState
   validationIssues: ValidationIssue[]
+  snapshots: Snapshot[]
 
   setCurrentPage: (page: 'editor' | 'validator' | 'playthrough') => void
   setSelectedChapter: (id: string | null) => void
@@ -60,6 +61,12 @@ interface AppState {
 
   jumpToIssue: (issue: ValidationIssue) => void
 
+  createSnapshot: (name: string, note: string) => void
+  restoreSnapshot: (snapshotId: string) => void
+  deleteSnapshot: (snapshotId: string) => void
+
+  generatePlaythroughReport: () => string
+
   loadProject: (project: Project) => void
   getProjectForSave: () => Project
 }
@@ -74,6 +81,8 @@ const createEmptyProject = (): Project => ({
   curseRules: [],
   symbols: {},
   playthrough: null,
+  snapshots: [],
+  lastOpenedAt: Date.now(),
   uiState: {
     currentPage: 'editor',
     selectedChapterIds: [],
@@ -116,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedBranchId: null,
   playthrough: createInitialPlaythrough(),
   validationIssues: [],
+  snapshots: [],
 
   setCurrentPage: (page) => set({ currentPage: page }),
   setSelectedChapter: (id) => set({ selectedChapterId: id, selectedChapterIds: id ? [id] : [], selectedBranchId: null }),
@@ -569,6 +579,191 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  createSnapshot: (name, note) => set((state) => {
+    const newSnapshot: Snapshot = {
+      id: uuidv4(),
+      name,
+      note,
+      createdAt: Date.now(),
+      project: get().getProjectForSave()
+    }
+    const newSnapshots = [...state.project.snapshots, newSnapshot]
+    return {
+      snapshots: newSnapshots,
+      project: {
+        ...state.project,
+        snapshots: newSnapshots,
+        updatedAt: Date.now()
+      }
+    }
+  }),
+
+  restoreSnapshot: (snapshotId) => {
+    const { snapshots, loadProject } = get()
+    const snapshot = snapshots.find(s => s.id === snapshotId)
+    if (snapshot) {
+      loadProject(snapshot.project)
+    }
+  },
+
+  deleteSnapshot: (snapshotId) => set((state) => {
+    const newSnapshots = state.project.snapshots.filter(s => s.id !== snapshotId)
+    return {
+      snapshots: newSnapshots,
+      project: {
+        ...state.project,
+        snapshots: newSnapshots,
+        updatedAt: Date.now()
+      }
+    }
+  }),
+
+  generatePlaythroughReport: () => {
+    const { playthrough, project } = get()
+
+    const formatDateTime = (ts: number) => {
+      const d = new Date(ts)
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    }
+
+    if (playthrough.choicesMade.length === 0 && !playthrough.currentChapterId) {
+      return `# 试玩测试报告\n\n- 生成时间：${formatDateTime(Date.now())}\n\n## 流程回放\n\n暂无试玩记录\n`
+    }
+
+    const firstChapter = project.chapters.find(c => c.id === playthrough.visitedChapters[0])
+    const finalChapter = project.chapters.find(c => c.id === playthrough.currentChapterId)
+    const status = playthrough.isEnded ? '到达结局' : '中途停止'
+
+    let report = `# 试玩测试报告\n\n`
+    report += `- 生成时间：${formatDateTime(Date.now())}\n`
+    report += `- 最终诅咒值：${playthrough.curseValue}\n`
+    report += `- 最终章节：${finalChapter?.sceneName || '未知章节'}\n`
+    report += `- 状态：${status}\n\n`
+
+    report += `## 流程回放\n\n`
+
+    let prevItems: string[] = firstChapter?.keyItems ? [...firstChapter.keyItems] : []
+    let prevMemories: string[] = []
+    let prevForeshadowing: string[] = []
+    let prevCurse = firstChapter?.currentCurseLevel || 0
+
+    if (firstChapter) {
+      report += `### 第 1 步：${firstChapter.sceneName}（初始章节）\n\n`
+      report += `- 场景描述：${firstChapter.narrativeText || '（无描述）'}\n`
+      report += `- 氛围：${firstChapter.fearAtmosphere || '（无）'}\n`
+      report += `- 进入时诅咒值：${firstChapter.currentCurseLevel}\n`
+      if (firstChapter.keyItems.length > 0) {
+        report += `- 关键道具（本章节关键）：${firstChapter.keyItems.join('、')}\n`
+      }
+      report += `\n`
+    }
+
+    playthrough.choicesMade.forEach((choice, idx) => {
+      const chapter = project.chapters.find(c => c.id === choice.chapterId)
+      const branch = chapter?.branches.find(b => b.id === choice.branchId)
+      const nextChapter = branch?.nextChapterId
+        ? project.chapters.find(c => c.id === branch.nextChapterId)
+        : null
+
+      if (!chapter || !branch) return
+
+      report += `**选择：** ${branch.choiceText}\n\n`
+      if (branch.cost) {
+        report += `- 代价：${branch.cost}\n`
+      }
+      const ruleDelta = project.curseRules
+        .filter(r => !r.chapters.length || r.chapters.includes(nextChapter?.id || ''))
+        .reduce((sum, r) => sum + (r.curseDelta || 0), 0)
+      const totalDelta = branch.curseDelta + ruleDelta
+      const newCurse = prevCurse + totalDelta
+      report += `- 诅咒变化：${totalDelta >= 0 ? '+' : ''}${totalDelta} → 当前 ${newCurse}\n`
+
+      const newItems = (nextChapter?.keyItems || []).filter(i => !prevItems.includes(i))
+      if (newItems.length > 0) {
+        report += `- 获得道具：${newItems.join('、')}\n`
+      }
+
+      if (branch.characterMemory && !prevMemories.includes(branch.characterMemory)) {
+        report += `- 获得记忆：${branch.characterMemory}\n`
+      }
+
+      if (branch.foreshadowing && !prevForeshadowing.includes(branch.foreshadowing)) {
+        report += `- 触发伏笔：${branch.foreshadowing}\n`
+      }
+
+      report += `\n`
+
+      if (nextChapter) {
+        report += `### 第 ${idx + 2} 步：${nextChapter.sceneName}\n\n`
+        report += `- 场景描述：${nextChapter.narrativeText || '（无描述）'}\n`
+        report += `- 氛围：${nextChapter.fearAtmosphere || '（无）'}\n`
+        report += `- 进入时诅咒值：${newCurse}\n`
+        if (nextChapter.keyItems.length > 0) {
+          report += `- 关键道具（本章节关键）：${nextChapter.keyItems.join('、')}\n`
+        }
+        report += `\n`
+
+        prevItems = [...new Set([...prevItems, ...(nextChapter.keyItems || [])])]
+      }
+
+      if (branch.characterMemory) {
+        prevMemories = [...prevMemories, branch.characterMemory]
+      }
+      if (branch.foreshadowing) {
+        prevForeshadowing = [...prevForeshadowing, branch.foreshadowing]
+      }
+      prevCurse = newCurse
+    })
+
+    report += `## 收集清单\n\n`
+
+    report += `### 获得的道具（${playthrough.collectedItems.length} 个）\n`
+    if (playthrough.collectedItems.length === 0) {
+      report += `\n- （无）\n`
+    } else {
+      playthrough.collectedItems.forEach(item => {
+        report += `- ${item}\n`
+      })
+    }
+    report += `\n`
+
+    report += `### 获得的记忆（${playthrough.memories.length} 个）\n`
+    if (playthrough.memories.length === 0) {
+      report += `\n- （无）\n`
+    } else {
+      playthrough.memories.forEach(mem => {
+        report += `- ${mem}\n`
+      })
+    }
+    report += `\n`
+
+    report += `### 触发的伏笔（${playthrough.foreshadowingNotes.length} 个）\n`
+    if (playthrough.foreshadowingNotes.length === 0) {
+      report += `\n- （无）\n`
+    } else {
+      playthrough.foreshadowingNotes.forEach(note => {
+        report += `- ${note}\n`
+      })
+    }
+    report += `\n`
+
+    const appliedRules = project.curseRules.filter(r => {
+      if (!r.chapters || r.chapters.length === 0) return true
+      return r.chapters.some(chId => playthrough.visitedChapters.includes(chId))
+    })
+    report += `## 应用到的诅咒规则\n`
+    if (appliedRules.length === 0) {
+      report += `\n（无）\n`
+    } else {
+      appliedRules.forEach(rule => {
+        report += `- ${rule.name}：${rule.curseDelta >= 0 ? '+' : ''}${rule.curseDelta}\n`
+      })
+    }
+
+    return report
+  },
+
   startPlaythrough: () => set((state) => {
     const firstChapter = state.project.chapters[0]
     return {
@@ -666,16 +861,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedChapterIds: [] as string[],
       selectedBranchId: null as string | null
     }
+    const projectSnapshots = project.snapshots ?? []
+    const lastOpenedAt = project.lastOpenedAt ?? Date.now()
     set({
       project: {
         ...project,
         chapters: normalizedChapters,
         curseRules: project.curseRules.map(r => ({ ...r, curseDelta: r.curseDelta || 0 })),
         playthrough: project.playthrough ?? null,
+        snapshots: projectSnapshots,
+        lastOpenedAt,
         uiState,
         updatedAt: Date.now()
       },
-      currentPage: uiState.currentPage,
+      snapshots: projectSnapshots,
       selectedChapterId: null,
       selectedChapterIds: uiState.selectedChapterIds,
       selectedBranchId: uiState.selectedBranchId,
@@ -687,6 +886,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get()
     return {
       ...state.project,
+      snapshots: state.snapshots,
+      lastOpenedAt: Date.now(),
       playthrough: state.playthrough,
       uiState: {
         currentPage: state.currentPage,

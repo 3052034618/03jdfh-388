@@ -5,6 +5,7 @@ import StoryCanvas from '../components/editor/StoryCanvas'
 import ChapterEditor from '../components/editor/ChapterEditor'
 import BranchEditor from '../components/editor/BranchEditor'
 import RulesPanel from '../components/editor/RulesPanel'
+import SnapshotsPanel from '../components/editor/SnapshotsPanel'
 
 export default function EditorPage() {
   const selectedChapterId = useAppStore((s) => s.selectedChapterId)
@@ -66,6 +67,7 @@ export default function EditorPage() {
         <div className="sidebar-content">
           <ChapterList />
           <RulesPanel />
+          <SnapshotsPanel />
         </div>
       </div>
 

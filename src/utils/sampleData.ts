@@ -327,6 +327,8 @@ export function loadSampleProject(): Project {
       '床': '梦境与死亡的过渡点'
     },
     playthrough: null,
+    snapshots: [],
+    lastOpenedAt: Date.now(),
     uiState: {
       currentPage: 'editor',
       selectedChapterIds: [],

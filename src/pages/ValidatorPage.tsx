@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store'
-import type { ValidationIssue } from '../types'
+import type { ValidationIssue, FixItem } from '../types'
 
 const TYPE_LABELS: Record<ValidationIssue['type'], string> = {
   unclosed_branch: '未收束分支',
@@ -28,12 +28,22 @@ const TYPE_ICONS: Record<ValidationIssue['type'], string> = {
   circular_reference: '♻️'
 }
 
+const FIX_ACTION_ICONS: Record<FixItem['actionType'], string> = {
+  connect_branch: '🔗',
+  add_symbol_explanation: '📖',
+  write_ending: '📝',
+  resolve_rule_conflict: '⚖️',
+  close_loop: '🔁',
+  custom: '🛠'
+}
+
 export default function ValidatorPage() {
   const project = useAppStore((s) => s.project)
   const issues = useAppStore((s) => s.validationIssues)
   const runValidation = useAppStore((s) => s.runValidation)
   const setCurrentPage = useAppStore((s) => s.setCurrentPage)
   const setSelectedChapter = useAppStore((s) => s.setSelectedChapter)
+  const setSelectedBranch = useAppStore((s) => s.setSelectedBranch)
   const jumpToIssue = useAppStore((s) => s.jumpToIssue)
 
   const [expandedIssues, setExpandedIssues] = useState<Record<string, boolean>>({})
@@ -46,9 +56,24 @@ export default function ValidatorPage() {
   const warningCount = issues.filter((i) => i.severity === 'warning').length
   const infoCount = issues.filter((i) => i.severity === 'info').length
 
-  const handleJumpTo = (chapterId: string) => {
+  const handleJumpTo = (chapterId: string, branchId?: string) => {
     setSelectedChapter(chapterId)
+    if (branchId) {
+      setSelectedBranch(branchId)
+    }
     setCurrentPage('editor')
+  }
+
+  const handleFixItemClick = (fixItem: FixItem) => {
+    if (fixItem.targetChapterId) {
+      setSelectedChapter(fixItem.targetChapterId)
+      if (fixItem.targetBranchId) {
+        setSelectedBranch(fixItem.targetBranchId)
+      }
+      setCurrentPage('editor')
+    } else {
+      setCurrentPage('editor')
+    }
   }
 
   const getRelatedChapters = (issue: ValidationIssue) => {
@@ -138,6 +163,7 @@ export default function ValidatorPage() {
             const relatedChapters = getRelatedChapters(issue)
             const isExpanded = expandedIssues[issue.id] || false
             const linkInfoAvailable = hasLinkInfo(issue)
+            const hasFixItems = issue.fixItems && issue.fixItems.length > 0
 
             return (
               <div key={issue.id} className={`issue-card ${issue.severity}`}>
@@ -261,7 +287,7 @@ export default function ValidatorPage() {
                               {i > 0 && '、'}
                               <button
                                 className="btn btn-ghost btn-small"
-                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id)}
+                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id, brInfo.branch.id)}
                                 style={{ color: 'var(--accent-warning)', padding: '0 4px' }}
                               >
                                 {brInfo?.branch.choiceText || id}
@@ -284,7 +310,7 @@ export default function ValidatorPage() {
                               {i > 0 && '、'}
                               <button
                                 className="btn btn-ghost btn-small"
-                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id)}
+                                onClick={() => brInfo && handleJumpTo(brInfo.chapter.id, brInfo.branch.id)}
                                 style={{ color: 'var(--accent-warning)', padding: '0 4px' }}
                               >
                                 {brInfo?.branch.choiceText || id}
@@ -294,6 +320,70 @@ export default function ValidatorPage() {
                         })}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {hasFixItems && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(59, 130, 246, 0.25)'
+                  }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px', color: 'var(--accent-info)' }}>
+                      🔧 修复清单
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {issue.fixItems.map((fixItem) => (
+                        <div
+                          key={fixItem.id}
+                          onClick={() => handleFixItemClick(fixItem)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 10px',
+                            backgroundColor: 'rgba(255,255,255,0.04)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: '1px solid transparent',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'
+                            e.currentTarget.style.borderColor = 'transparent'
+                          }}
+                        >
+                          <span style={{ fontSize: '16px', flexShrink: 0 }}>
+                            {FIX_ACTION_ICONS[fixItem.actionType]}
+                          </span>
+                          <span style={{
+                            flex: 1,
+                            fontSize: '13px',
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.5
+                          }}>
+                            {fixItem.description}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            color: 'var(--accent-info)',
+                            fontWeight: 500,
+                            padding: '3px 8px',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            📍 跳转
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

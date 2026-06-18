@@ -30,6 +30,13 @@ const saveWindowState = (state) => {
   }
 }
 
+const getAssetPath = (...paths) => {
+  const RESOURCES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, 'app')
+    : path.join(__dirname, '..')
+  return path.join(RESOURCES_PATH, ...paths)
+}
+
 app.commandLine.appendSwitch('disable-gpu', 'true')
 
 async function loadDevURL(window, retries = 10, delay = 2000) {
@@ -44,6 +51,53 @@ async function loadDevURL(window, retries = 10, delay = 2000) {
   }
   console.error('无法加载开发服务器，请确认 Vite 开发服务器已在端口 5175 启动')
 }
+
+const ERROR_HTML = `data:text/html;charset=utf-8,
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>加载失败</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0f;
+      color: #e8e8f0;
+      font-family: 'Microsoft YaHei', sans-serif;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+    }
+    .icon { font-size: 64px; margin-bottom: 20px; }
+    .title { font-size: 24px; margin-bottom: 12px; color: #ff6b6b; }
+    .desc { font-size: 14px; color: #a0a0b0; margin-bottom: 24px; line-height: 1.6; }
+    button {
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #8b0000, #6b2d8b);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">⚠️</div>
+    <div class="title">加载失败</div>
+    <div class="desc">页面加载出现错误，请重启应用或重试。<br>如果问题持续存在，请联系开发者。</div>
+    <button onclick="location.reload()">重试</button>
+  </div>
+</body>
+</html>`.replace(/\n/g, '').trim()
 
 function createWindow() {
   const savedState = loadWindowState()
@@ -68,6 +122,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       preload: path.join(__dirname, 'preload.js')
     }
   })
@@ -77,6 +132,26 @@ function createWindow() {
   }
 
   let currentState = { ...windowState }
+  let windowStateSaved = false
+
+  const saveFinalState = () => {
+    if (windowStateSaved) return
+    windowStateSaved = true
+    if (!mainWindow.isDestroyed()) {
+      if (!mainWindow.isMaximized()) {
+        try {
+          const [width, height] = mainWindow.getSize()
+          const [x, y] = mainWindow.getPosition()
+          currentState.width = width
+          currentState.height = height
+          currentState.x = x
+          currentState.y = y
+        } catch (e) {}
+      }
+      currentState.maximized = mainWindow.isMaximized()
+    }
+    saveWindowState(currentState)
+  }
 
   mainWindow.on('resize', () => {
     const [width, height] = mainWindow.getSize()
@@ -102,17 +177,8 @@ function createWindow() {
     saveWindowState(currentState)
   })
 
-  mainWindow.on('close', () => {
-    if (!mainWindow.isMaximized()) {
-      const [width, height] = mainWindow.getSize()
-      const [x, y] = mainWindow.getPosition()
-      currentState.width = width
-      currentState.height = height
-      currentState.x = x
-      currentState.y = y
-    }
-    currentState.maximized = mainWindow.isMaximized()
-    saveWindowState(currentState)
+  mainWindow.on('close', (e) => {
+    saveFinalState()
   })
 
   const isDev = !app.isPackaged
@@ -128,9 +194,19 @@ function createWindow() {
     mainWindow.webContents.openDevTools()
   } else {
     try {
-      mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
+      const indexPath = getAssetPath('dist', 'index.html')
+      console.log('加载生产页面:', indexPath)
+      mainWindow.loadFile(indexPath).catch((err) => {
+        console.error('loadFile 失败:', err)
+        mainWindow.loadURL(ERROR_HTML)
+      })
     } catch (err) {
       console.error('加载生产页面失败:', err)
+      try {
+        mainWindow.loadURL(ERROR_HTML)
+      } catch (fallbackErr) {
+        console.error('加载错误页面也失败:', fallbackErr)
+      }
     }
   }
 }
@@ -172,5 +248,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })

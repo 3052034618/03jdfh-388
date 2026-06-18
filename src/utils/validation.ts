@@ -86,6 +86,7 @@ export function validateProject(project: Project): ValidationIssue[] {
   validateMissingEndingDescription(project, issues)
   validateRuleConflict(project, issues)
   validateCircularReference(project, issues)
+  validateEmptyConditions(project, issues)
 
   return issues
 }
@@ -105,7 +106,16 @@ function validateUnclosedBranches(project: Project, issues: ValidationIssue[]) {
           description: `在章节"${chapter.sceneName}"中，选择"${branch.choiceText}"没有指定后续章节，玩家选择后将直接结束游戏。`,
           relatedChapterIds: [chapter.id],
           relatedBranchIds: [branch.id],
-          ...linkInfo
+          ...linkInfo,
+          fixItems: [
+            {
+              id: uuidv4(),
+              description: '连接分支「' + branch.choiceText + '」到一个后续章节',
+              targetChapterId: chapter.id,
+              targetBranchId: branch.id,
+              actionType: 'connect_branch'
+            }
+          ]
         })
       }
     })
@@ -120,7 +130,15 @@ function validateUnclosedBranches(project: Project, issues: ValidationIssue[]) {
         description: `章节"${chapter.sceneName}"不是结局章节，但没有任何玩家选择分支，剧情将在此中断。`,
         relatedChapterIds: [chapter.id],
         relatedBranchIds: [],
-        ...linkInfo
+        ...linkInfo,
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '为章节「' + chapter.sceneName + '」添加分支或标记为结局',
+            targetChapterId: chapter.id,
+            actionType: 'custom'
+          }
+        ]
       })
     }
   })
@@ -148,7 +166,22 @@ function validateCurseContradictions(project: Project, issues: ValidationIssue[]
             `期望最小诅咒值约为 ${expectedMinCurse}，但目标章节诅咒等级为 ${nextChapter.currentCurseLevel}，可能存在设定矛盾。`,
           relatedChapterIds: [chapter.id, nextChapter.id],
           relatedBranchIds: [branch.id],
-          ...linkInfo
+          ...linkInfo,
+          fixItems: [
+            {
+              id: uuidv4(),
+              description: '调整目标章节「' + nextChapter.sceneName + '」的诅咒等级',
+              targetChapterId: nextChapter.id,
+              actionType: 'custom'
+            },
+            {
+              id: uuidv4(),
+              description: '调整分支「' + branch.choiceText + '」的诅咒增量',
+              targetChapterId: chapter.id,
+              targetBranchId: branch.id,
+              actionType: 'custom'
+            }
+          ]
         })
       }
     })
@@ -165,7 +198,15 @@ function validateCurseContradictions(project: Project, issues: ValidationIssue[]
         description: `诅咒规则"${rule.name}"缺少触发条件或效果描述。`,
         relatedChapterIds: rule.chapters,
         relatedBranchIds: [],
-        ...linkInfo
+        relatedRuleIds: [rule.id],
+        ...linkInfo,
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '补充规则「' + rule.name + '」的触发条件和效果',
+            actionType: 'custom'
+          }
+        ]
       })
     }
   })
@@ -206,7 +247,14 @@ function validateUnexplainedSymbols(project: Project, issues: ValidationIssue[])
         relatedChapterIds: uniqueChapterIds,
         relatedBranchIds: branchesUsing,
         relatedSymbols: [symbol],
-        ...linkInfo
+        ...linkInfo,
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '在符号词典中添加「' + symbol + '」的解释',
+            actionType: 'add_symbol_explanation'
+          }
+        ]
       })
     }
   })
@@ -225,7 +273,14 @@ function validateUnexplainedSymbols(project: Project, issues: ValidationIssue[])
         upstreamChapterIds: [],
         downstreamChapterIds: [],
         upstreamBranchIds: [],
-        downstreamBranchIds: []
+        downstreamBranchIds: [],
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '删除或在剧情中使用符号「' + symbol + '」',
+            actionType: 'custom'
+          }
+        ]
       })
     }
   })
@@ -263,7 +318,15 @@ function validateOrphanChapters(project: Project, issues: ValidationIssue[]) {
         description: `章节"${ch.sceneName}"无法从起始章节到达，没有任何分支指向它。`,
         relatedChapterIds: [ch.id],
         relatedBranchIds: [],
-        ...linkInfo
+        ...linkInfo,
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '添加其他分支指向章节「' + ch.sceneName + '」',
+            targetChapterId: ch.id,
+            actionType: 'connect_branch'
+          }
+        ]
       })
     }
   })
@@ -284,7 +347,16 @@ function validateMissingConnections(project: Project, issues: ValidationIssue[])
           description: `在"${chapter.sceneName}"中，分支"${branch.choiceText}"指向的后续章节不存在，可能已被删除。`,
           relatedChapterIds: [chapter.id],
           relatedBranchIds: [branch.id],
-          ...linkInfo
+          ...linkInfo,
+          fixItems: [
+            {
+              id: uuidv4(),
+              description: '将分支「' + branch.choiceText + '」重新连接到存在的章节',
+              targetChapterId: chapter.id,
+              targetBranchId: branch.id,
+              actionType: 'connect_branch'
+            }
+          ]
         })
       }
     })
@@ -292,7 +364,7 @@ function validateMissingConnections(project: Project, issues: ValidationIssue[])
 }
 
 function validateSymbolInconsistent(project: Project, issues: ValidationIssue[]) {
-  const symbolBranches = new Map<string, { value: string; chapterName: string; branchId: string }[]>()
+  const symbolBranches = new Map<string, { value: string; chapter: Chapter; branch: Branch }[]>()
 
   project.chapters.forEach((chapter) => {
     chapter.branches.forEach((branch) => {
@@ -303,8 +375,8 @@ function validateSymbolInconsistent(project: Project, issues: ValidationIssue[])
         }
         symbolBranches.get(symbol)!.push({
           value,
-          chapterName: chapter.sceneName,
-          branchId: branch.id
+          chapter,
+          branch
         })
       })
     })
@@ -316,17 +388,24 @@ function validateSymbolInconsistent(project: Project, issues: ValidationIssue[])
       if (!valueMap.has(entry.value)) {
         valueMap.set(entry.value, [])
       }
-      valueMap.get(entry.value)!.push(entry.chapterName)
+      valueMap.get(entry.value)!.push(entry.chapter.sceneName)
     })
 
     if (valueMap.size > 1) {
       const conflicts = Array.from(valueMap.entries())
         .map(([value, chapters]) => `"${value}" (出现于: ${chapters.join('、')})`)
         .join('；')
-      const relatedChapterIds = entries.map((_, i) => project.chapters.find(ch =>
-        ch.branches.some(br => br.id === entries[i].branchId)
-      )?.id || '').filter(Boolean)
+      const relatedChapterIds = entries.map(e => e.chapter.id)
       const linkInfo = collectLinkInfo(relatedChapterIds, project.chapters)
+
+      const fixItems = entries.map((entry) => ({
+        id: uuidv4(),
+        description: '统一分支「' + entry.branch.choiceText + '」中符号「' + symbol + '」的解释',
+        targetChapterId: entry.chapter.id,
+        targetBranchId: entry.branch.id,
+        actionType: 'add_symbol_explanation' as const
+      }))
+
       issues.push({
         id: uuidv4(),
         type: 'symbol_inconsistent',
@@ -334,9 +413,10 @@ function validateSymbolInconsistent(project: Project, issues: ValidationIssue[])
         title: `符号解释不一致: "${symbol}"`,
         description: `符号"${symbol}"在不同分支有不同的本地化解释：${conflicts}。请统一符号含义，避免玩家困惑。`,
         relatedChapterIds,
-        relatedBranchIds: entries.map(e => e.branchId),
+        relatedBranchIds: entries.map(e => e.branch.id),
         relatedSymbols: [symbol],
-        ...linkInfo
+        ...linkInfo,
+        fixItems
       })
     }
   })
@@ -354,7 +434,15 @@ function validateMissingEndingDescription(project: Project, issues: ValidationIs
         description: `章节"${chapter.sceneName}"是结局章节，但没有填写结局描述（endingDescription）。建议补充结局的详细说明，让玩家获得完整的体验。`,
         relatedChapterIds: [chapter.id],
         relatedBranchIds: [],
-        ...linkInfo
+        ...linkInfo,
+        fixItems: [
+          {
+            id: uuidv4(),
+            description: '为结局章节「' + chapter.sceneName + '」填写结局描述',
+            targetChapterId: chapter.id,
+            actionType: 'write_ending'
+          }
+        ]
       })
     }
   })
@@ -386,7 +474,14 @@ function validateRuleConflict(project: Project, issues: ValidationIssue[]) {
             relatedChapterIds: intersection,
             relatedBranchIds: [],
             relatedRuleIds: [ruleA.id, ruleB.id],
-            ...linkInfo
+            ...linkInfo,
+            fixItems: [
+              {
+                id: uuidv4(),
+                description: '修正规则「' + ruleA.name + '」和「' + ruleB.name + '」在相同章节的诅咒增量冲突',
+                actionType: 'resolve_rule_conflict'
+              }
+            ]
           })
         }
       }
@@ -414,6 +509,34 @@ function validateCircularReference(project: Project, issues: ValidationIssue[]) 
           .map(id => chapterMap.get(id)?.sceneName || id)
           .join(' → ')
         const linkInfo = collectLinkInfo(cycleChapters, project.chapters)
+
+        const fixItems: {
+          id: string
+          description: string
+          targetChapterId?: string
+          targetBranchId?: string
+          actionType: 'close_loop'
+        }[] = []
+
+        for (let i = 0; i < cycleChapters.length - 1; i++) {
+          const currentId = cycleChapters[i]
+          const nextId = cycleChapters[i + 1]
+          const currentChapter = chapterMap.get(currentId)
+          const nextChapter = chapterMap.get(nextId)
+          if (!currentChapter || !nextChapter) continue
+
+          const connectingBranch = currentChapter.branches.find(br => br.nextChapterId === nextId)
+          if (connectingBranch) {
+            fixItems.push({
+              id: uuidv4(),
+              description: '打断 ' + currentChapter.sceneName + ' → ' + nextChapter.sceneName + ' 的循环连接',
+              targetChapterId: currentId,
+              targetBranchId: connectingBranch.id,
+              actionType: 'close_loop'
+            })
+          }
+        }
+
         issues.push({
           id: uuidv4(),
           type: 'circular_reference',
@@ -421,8 +544,9 @@ function validateCircularReference(project: Project, issues: ValidationIssue[]) 
           title: `检测到循环引用`,
           description: `剧情中存在循环：${cycleNames}。这会导致玩家陷入无限循环，无法正常推进或结束游戏。`,
           relatedChapterIds: cycleChapters,
-          relatedBranchIds: [],
-          ...linkInfo
+          relatedBranchIds: fixItems.map(f => f.targetBranchId!).filter(Boolean),
+          ...linkInfo,
+          fixItems
         })
         return true
       }
@@ -452,4 +576,38 @@ function validateCircularReference(project: Project, issues: ValidationIssue[]) 
   }
 
   dfs(firstChapter.id)
+}
+
+function validateEmptyConditions(project: Project, issues: ValidationIssue[]) {
+  project.chapters.forEach((chapter) => {
+    chapter.branches.forEach((branch) => {
+      if (branch.structuredConditions && branch.structuredConditions.length > 0) {
+        const emptyConditions = branch.structuredConditions.filter(
+          (cond) => !cond.value && !cond.description
+        )
+        if (emptyConditions.length > 0) {
+          const linkInfo = collectLinkInfo([chapter.id], project.chapters)
+          issues.push({
+            id: uuidv4(),
+            type: 'empty_conditions',
+            severity: 'info',
+            title: `分支条件为空: "${branch.choiceText}"`,
+            description: `在章节"${chapter.sceneName}"中，分支"${branch.choiceText}"存在未填写的条件项（共 ${emptyConditions.length} 条）。`,
+            relatedChapterIds: [chapter.id],
+            relatedBranchIds: [branch.id],
+            ...linkInfo,
+            fixItems: [
+              {
+                id: uuidv4(),
+                description: '填写或删除分支「' + branch.choiceText + '」中的空条件',
+                targetChapterId: chapter.id,
+                targetBranchId: branch.id,
+                actionType: 'custom'
+              }
+            ]
+          })
+        }
+      }
+    })
+  })
 }

@@ -91,6 +91,26 @@ export default function PlaythroughPage() {
   const startPlaythrough = useAppStore((s) => s.startPlaythrough)
   const makeChoice = useAppStore((s) => s.makeChoice)
   const resetPlaythrough = useAppStore((s) => s.resetPlaythrough)
+  const generatePlaythroughReport = useAppStore((s) => s.generatePlaythroughReport)
+
+  const hasPlaythroughRecord = playthrough.choicesMade.length > 0 || !!playthrough.currentChapterId
+
+  const handleExportReport = () => {
+    if (!hasPlaythroughRecord) {
+      alert('暂无试玩记录')
+      return
+    }
+    const markdown = generatePlaythroughReport()
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `试玩报告-${new Date().toISOString().slice(0, 10)}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     if (!playthrough.currentChapterId && !playthrough.isEnded && project.chapters.length > 0) {
@@ -110,6 +130,24 @@ export default function PlaythroughPage() {
   return (
     <div className="playthrough-page">
       <div className="playthrough-main">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600 }}>
+            🎮 试玩模式
+          </div>
+          <button
+            className="btn btn-secondary btn-small"
+            onClick={handleExportReport}
+            disabled={!hasPlaythroughRecord}
+            style={{
+              opacity: hasPlaythroughRecord ? 1 : 0.5,
+              cursor: hasPlaythroughRecord ? 'pointer' : 'not-allowed'
+            }}
+            title={hasPlaythroughRecord ? '导出测试报告为 Markdown 文件' : '暂无试玩记录'}
+          >
+            📤 导出测试报告
+          </button>
+        </div>
+
         {(!currentChapter && !playthrough.isEnded) || project.chapters.length === 0 ? (
           <div className="empty-state" style={{ marginTop: '80px' }}>
             <div className="empty-state-icon">🎮</div>

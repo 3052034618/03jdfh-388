@@ -50,6 +50,22 @@ export interface CurseRule {
   chapters: string[]
 }
 
+export interface FixItem {
+  id: string
+  description: string
+  targetChapterId?: string
+  targetBranchId?: string
+  actionType: 'connect_branch' | 'add_symbol_explanation' | 'write_ending' | 'resolve_rule_conflict' | 'close_loop' | 'custom'
+}
+
+export interface Snapshot {
+  id: string
+  name: string
+  note: string
+  createdAt: number
+  project: Project
+}
+
 export interface Project {
   id: string
   title: string
@@ -60,6 +76,8 @@ export interface Project {
   curseRules: CurseRule[]
   symbols: Record<string, string>
   playthrough: PlaythroughState | null
+  snapshots: Snapshot[]
+  lastOpenedAt: number
   uiState: {
     currentPage: 'editor' | 'validator' | 'playthrough'
     selectedChapterIds: string[]
@@ -105,6 +123,7 @@ export interface ValidationIssue {
   downstreamChapterIds: string[]
   upstreamBranchIds: string[]
   downstreamBranchIds: string[]
+  fixItems: FixItem[]
 }
 
 export interface ConditionCheckResult {
