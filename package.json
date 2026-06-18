@@ -1,0 +1,54 @@
+{
+  "name": "curseweaver",
+  "productName": "CurseWeaver - 分支诅咒剧情编排器",
+  "version": "1.0.0",
+  "description": "面向独立恐怖游戏编剧的桌面端分支诅咒剧情编排器",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite --port 5175",
+    "dev:electron": "wait-on tcp:5175 && electron .",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build:renderer": "tsc && vite build",
+    "build": "npm run build:renderer && electron-builder",
+    "preview": "vite preview"
+  },
+  "keywords": ["horror", "game", "narrative", "electron"],
+  "author": "CurseWeaver",
+  "license": "MIT",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.curseweaver.app",
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "electron": "^42.4.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "uuid": "^14.0.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
+    "electron-builder": "^26.15.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "wait-on": "^9.0.10"
+  }
+}
